@@ -7,6 +7,7 @@ import * as targets from '@aws-cdk/aws-route53-targets';
 import * as s3 from '@aws-cdk/aws-s3';
 import * as deploy from '@aws-cdk/aws-s3-deployment';
 import * as codebuild from '@aws-cdk/aws-codebuild';
+import * as origins from "@aws-cdk/aws-cloudfront-origins";
 import { Role } from '@aws-cdk/aws-iam';
 
 // dotenv Must be the first expression
@@ -73,19 +74,18 @@ export class ConverterPipeLineStack extends cdk.Stack {
 
     const convertDappCertificate = acm.Certificate.fromCertificateArn(this, 'ConverterDappCertificate', CERTIFICATE_ARN);
 
-    const siteDistribution = new cloudfront.CloudFrontWebDistribution(this, `${environment}-converter-dapp-distribution`, {
-      defaultRootObject: 'index.html',
-      viewerCertificate: cloudfront.ViewerCertificate.fromAcmCertificate(convertDappCertificate),
-      originConfigs: [
-        {
-          s3OriginSource: {
-            s3BucketSource: siteBucket
-          },
-          behaviors: [{ isDefaultBehavior: true }]
-        }
-      ],
-      viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS
+    const siteDistribution = new cloudfront.Distribution(this, `${environment}-converter-dapp-distribution`, {
+      defaultRootObject: "index.html",
+      certificate: convertDappCertificate,
+      defaultBehavior: {
+        origin: new origins.HttpOrigin(siteBucket.bucketWebsiteUrl),
+        allowedMethods: cloudfront.AllowedMethods.ALLOW_GET_HEAD_OPTIONS,
+        viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+        cachePolicy: cloudfront.CachePolicy.CACHING_OPTIMIZED,
+        responseHeadersPolicy: cloudfront.ResponseHeadersPolicy.CORS_ALLOW_ALL_ORIGINS_AND_SECURITY_HEADERS
+      },
     });
+
 
     new deploy.BucketDeployment(this, `${environment}-converter-dapp-deployment`, {
       sources: [deploy.Source.asset('../build')],
